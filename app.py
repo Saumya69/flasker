@@ -122,45 +122,44 @@ def dashboard():
     id = current_user.id
     name_to_update = Users.query.get_or_404(id)
     if request.method == "POST":
-     name_to_update.name = request.form['name'] 
-     name_to_update.email = request.form['email']
-     name_to_update.favorite_color = request.form['favorite_color']
-     name_to_update.username = request.form['username']
-     name_to_update.about_author = request.form['about_author']
-     name_to_update.profilepic = request.files['profilepic']
-    
-     # grab imagename
-     pic_filename = secure_filename(name_to_update.profilepic.filename)
-     # set uuid
-     pic_name = str(uuid.uuid1()) + "_" + pic_filename
-     
-     #save image
-     saver = request.files['profilepic']
-     
+         name_to_update.name = request.form['name'] 
+         name_to_update.email = request.form['email']
+         name_to_update.favorite_color = request.form['favorite_color']
+         name_to_update.username = request.form['username']
+         name_to_update.about_author = request.form['about_author']
+         name_to_update.profilepic = request.files['profilepic']
+        
+         # grab imagename
+         pic_filename = secure_filename(name_to_update.profilepic.filename)
+         # set uuid
+         pic_name = str(uuid.uuid1()) + "_" + pic_filename
+         
+         #save image
+         saver = request.files['profilepic']
+         
 
-     #change it to a string to save to db
-     name_to_update.profilepic = pic_name
+         #change it to a string to save to db
+         name_to_update.profilepic = pic_name
 
-     try:
-        db.session.commit()
-        saver.name_to_update.profilepic.save(os.path.join()(app.config['UPLOAD_FOLDER']), pic_name)
-        flash("User Updated Successfully")
-        return render_template("dashboard.html",
-            form=form,
-            name_to_update = name_to_update)
-     except:
-        flash("ERROR!! looks like there was a problem .....try again!!")
-        return render_template("dashboard.html",
-            form=form,
-            name_to_update = name_to_update)
+         try:
+            db.session.commit()
+            saver.save(os.path.join(app.config['UPLOAD_FOLDER'], pic_name))
+            flash("User Updated Successfully")
+            return render_template("dashboard.html",
+                form=form,
+                name_to_update = name_to_update)
+         except:
+            flash("ERROR!! looks like there was a problem .....try again!!")
+            return render_template("dashboard.html",
+                form=form,
+                name_to_update = name_to_update)
     else:
         return render_template("dashboard.html",
             form=form,
             name_to_update = name_to_update,
             id = id)
 
-    return render_template('dashboard.html')
-
+    
 
 
 @app.route('/posts/delete/<int:id>')
