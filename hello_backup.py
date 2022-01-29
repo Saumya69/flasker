@@ -1,4 +1,4 @@
-from flask import Flask, render_template, flash, request
+from flask import Flask, render_template, flash, request, redirect, url_for
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, PasswordField, BooleanField, ValidationError
 from wtforms.validators import DataRequired, EqualTo, Length
@@ -7,6 +7,8 @@ from flask_migrate import Migrate
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date
+from wtforms.widgets import TextArea
+from flask_login import UserMixin, login_user,LoginManager, login_required, logout_user, current_user
 
 # flask instance
 app = Flask(__name__)
@@ -23,6 +25,187 @@ app.config['SECRET_KEY'] = "my super secret key that no one is supposed to know"
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+#flasklogin stuffs
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return Users.query.get(int(user_id))
+
+#login form
+
+class LoginForm(FlaskForm):
+    username = StringField("Username", validators=[DataRequired()])
+    password = PasswordField("Password", validators=[DataRequired()])
+    submit = SubmitField("Submit")
+
+# login page
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = Users.query.filter_by(username=form.username.data).first()
+        if user:
+            #check hash
+            if check_password_hash(user.password_hash, form.password.data):
+                login_user(user)
+                flash("Login Successful!!")
+                return redirect(url_for('dashboard'))
+            else:
+                flash("Wrong Password - try again !!")
+        else:
+            flash("That user do not exist-try again !!")
+
+    return render_template('login.html',form=form)
+
+#logout page
+@app.route('/logout', methods=['GET', 'POST'])
+@login_required
+def logout():
+    logout_user()
+    flash("You Have Been Logged Out!!")
+    return redirect(url_for('login'))
+
+# dashboard page
+
+@app.route('/dashboard', methods=['GET', 'POST'])
+@login_required
+def dashboard():
+    form = UserForm()
+    id = current_user.id
+    name_to_update = Users.query.get_or_404(id)
+    if request.method == "POST":
+     name_to_update.name = request.form['name'] 
+     name_to_update.email = request.form['email']
+     name_to_update.favorite_color = request.form['favorite_color']
+     name_to_update.username = request.form['username']
+
+     try:
+        db.session.commit()
+        flash("User Updated Successfully")
+        return render_template("dashboard.html",
+            form=form,
+            name_to_update = name_to_update)
+     except:
+        flash("ERROR!! looks like there was a problem .....try again!!")
+        return render_template("dashboard.html",
+            form=form,
+            name_to_update = name_to_update)
+    else:
+        return render_template("dashboard.html",
+            form=form,
+            name_to_update = name_to_update,
+            id = id)
+
+    return render_template('dashboard.html')
+
+#create a blog post model
+class Posts(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255))
+    content = db.Column(db.Text)
+    author = db.Column(db.String(255))
+    date_posted = db.Column(db.DateTime, default=datetime.utcnow)
+    slug = db.Column(db.String(255))
+
+#create a post forms
+class PostForm(FlaskForm):
+    title = StringField("Title",validators=[DataRequired()])
+    content = StringField("Content",validators=[DataRequired()], widget=TextArea())
+    author = StringField("Author",validators=[DataRequired()])
+    slug = StringField("Slug",validators=[DataRequired()])
+    submit = SubmitField("Submit")
+
+@app.route('/posts/delete/<int:id>')
+def delete_post(id):
+    post_to_delete = Posts.query.get_or_404(id)
+
+    try:
+        db.session.delete(post_to_delete)
+        db.session.commit()
+
+        #return msg
+        flash("Blog Post Was Deleted")
+
+        #grab all the posts from the db
+        posts = Posts.query.order_by(Posts.date_posted)
+        return render_template("posts.html", posts=posts)
+
+
+    except:
+        # return an error msgg
+        flash("OOPS!! There was a problem deleting post,try again !!")
+
+        #grab all the posts from the db
+        posts = Posts.query.order_by(Posts.date_posted)
+        return render_template("posts.html", posts=posts)
+
+
+@app.route('/posts')
+def posts():
+#grab all the posts from the db
+    posts = Posts.query.order_by(Posts.date_posted)
+    return render_template("posts.html", posts=posts)
+
+@app.route('/posts/<int:id>')
+def  post(id):
+    post = Posts.query.get_or_404(id)
+    return render_template("post.html", post=post)
+
+@app.route('/posts/edit/<int:id>', methods=['GET','POST'])
+@login_required
+def edit_post(id):
+    post = Posts.query.get_or_404(id)
+    form = PostForm()
+    if form.validate_on_submit():
+        post.title = form.title.data
+        post.author = form.author.data
+        post.slug = form.slug.data
+        post.content = form.content.data
+        # update db
+        db.session.add(post)
+        db.session.commit()
+        flash("Post Has Been Updated!!")
+        return redirect(url_for('post',id=post.id))
+    form.title.data = post.title
+    form.author.data = post.author 
+    form.slug.data = post.slug
+    form.content.data = post.content
+    return render_template("edit_post.html", form=form)
+
+
+# add post page
+@app.route('/add-post', methods=['GET', 'POST'])
+@login_required
+def add_post():
+    form = PostForm()
+
+    if form.validate_on_submit():
+        post = Posts(title=form.title.data, content=form.content.data, author=form.author.data, slug=form.slug.data)
+        # clear forms
+        form.title.data = ''
+        form.content.data = ''
+        form.author.data = ''
+        form.slug.data = ''
+
+        #add post data to db
+        db.session.add(post)
+        db.session.commit() 
+
+        #return msg
+        flash("Blog Post Submitted Successfully!!")
+
+    #redirect to the webpage
+    return render_template("add_post.html", form=form)
+
+
+
+
+
+
+
 # json thing
 @app.route('/date')
 def get_current_date():
@@ -38,8 +221,9 @@ def get_current_date():
 
 
 # create model
-class Users(db.Model):
+class Users(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(20), nullable=False, unique=True)
     name = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), nullable=False, unique=True)
     favorite_color = db.Column(db.String(100))
@@ -96,6 +280,7 @@ def delete(id):
 # form class
 class UserForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
+    username = StringField("Username", validators=[DataRequired()])
     email = StringField("Email", validators=[DataRequired()])
     favorite_color = StringField("Favorite Color")
     password_hash = PasswordField('Password', validators=[DataRequired(), EqualTo('password_hash2', message = 'Passwords Must Match!!')])
@@ -121,6 +306,8 @@ def update(id):
      name_to_update.name = request.form['name'] 
      name_to_update.email = request.form['email']
      name_to_update.favorite_color = request.form['favorite_color']
+     name_to_update.username = request.form['username']
+
      try:
         db.session.commit()
         flash("User Updated Successfully")
@@ -152,11 +339,12 @@ def add_user():
             #hash pw
             hashed_pw = generate_password_hash(form.password_hash.data, "sha256")
 
-            user = Users(name=form.name.data, email=form.email.data, favorite_color=form.favorite_color.data, password_hash=hashed_pw)
+            user = Users(username = form.username.data,name=form.name.data, email=form.email.data, favorite_color=form.favorite_color.data, password_hash=hashed_pw)
             db.session.add(user)
             db.session.commit()
             name = form.name.data   
             form.name.data = ''
+            form.username.data = ''
             form.email.data = ''
             form.favorite_color = ''
             form.password_hash = ''

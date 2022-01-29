@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-dark">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
 	<div class="container-fluid">
 		<a class="navbar-brand" href="{{url_for('index') }}"
 		>Flasker</a>
@@ -9,21 +9,53 @@
 			<ul class="navbar-nav me-auto mb-2 mb-lg-0">
 				
 				<li class="nav-item">
-					<a class="nav-link" href="{{ url_for('name',)}}">Name</a>
+					<a class="nav-link" href="{{ url_for('name')}}">Name</a>
 				</li>
 
 				 <li class="nav-item">
 					<a class="nav-link" href="{{ url_for('name', name='sana')}}">User Profile</a>
-				</li>
+				</li>    
+
 				 <li class="nav-item">
 					<a class="nav-link" href="{{ url_for('add_user')}}">
-					Add User</a>
+					Register</a>
+				</li>
+
+				{% if current_user.is_authenticated %}
+				
+				{% if current_user.id == 1%}
+				<li class="nav-item">
+					<a class="nav-link" href="{{ url_for('admin')}}">
+					Admin</a>
+				{% endif %}
+
+				<li class="nav-item">
+					<a class="nav-link" href="{{ url_for('logout')}}">
+					Logout</a>
+				</li>
+				{% else %}
+				 <li class="nav-item">
+					<a class="nav-link" href="{{ url_for('login')}}">
+					Login</a>
+				</li>
+				{% endif %}
+
+
+				<li class="nav-item">
+					<a class="nav-link" href="{{ url_for('add_post')}}">
+					Add Blog Post</a>
+				</li>
+
+				<li class="nav-item">
+					<a class="nav-link" href="{{ url_for('posts')}}">
+					Posts</a>
 				</li>
 				
 				
 			</ul>
-			<form class="d-flex">
-				<input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
+			<form method="POST" action="{{ url_for('search') }}" class="d-flex">
+				{{ form.hidden_tag() }}
+				<input class="form-control me-2" type="search" placeholder="Search" aria-label="Search", name="searched">
 				<button class="btn btn-outline-secondary" type="submit">Search</button>
 			</form>
 		</div>
